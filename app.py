@@ -120,7 +120,7 @@ class DashboardWindow(QMainWindow):
 
             var waiting_time = document.getElementById('ui_waiting_time');
             if (waiting_time){{
-                waiting_time.innerText = '{human_count * average_waiting_time}';
+                waiting_time.innerText = '{human_count * average_waiting_time} mins.';
             }}
         """
         # Execute the Javascript injection
