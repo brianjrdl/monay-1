@@ -17,7 +17,7 @@ class VisionWorker:
         self.model_name = model_name
         self.detection_classes = [0]
         self.camera_index = camera_index
-        self.capture_backend = [cv2.CAP_MSMF, cv2.CAP_DSHOW]
+        self.capture_backend = [cv2.CAP_DSHOW, cv2.CAP_MSMF]
         self.model = None
         self.cap = None
 

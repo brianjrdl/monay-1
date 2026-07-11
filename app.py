@@ -3,13 +3,16 @@ import os
 import time
 import base64
 import cv2
+import json
 from PyQt6.QtCore import QThread, pyqtSignal, QUrl, pyqtSlot
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 
-# Import our decoupled worker
+# Import decoupled worker
 from vision_worker import VisionWorker
+# Import data manager for parsing data log (jsonl)
+from data_manager import DataManager
 
 # A global variable that might mess the code
 average_waiting_time = 2.5
@@ -69,7 +72,7 @@ class VisionThread(QThread):
 class DashboardWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Monay-1: Neon Tokyo Vision")
+        self.setWindowTitle("Monay-1: Waiting Time Estimator")
         self.resize(1280, 720) # Dashboard default size
 
         # 1. Setup the Web Engine (Chromium Browser inside PyQt)
@@ -87,18 +90,35 @@ class DashboardWindow(QMainWindow):
         self.browser.load(QUrl.fromLocalFile(html_path))
 
         # 3. Setup and start the AI Background Thread
+        print("Initializing Vision thread...")
         self.ai_thread = VisionThread()
         self.ai_thread.update_ui_signal.connect(self.update_dashboard)
 
         # Wait for the browser to finish loading HTML before starting the camera
         self.browser.loadFinished.connect(self.on_html_loaded)
 
-    def on_html_loaded(self, success):
-        if success:
-            print("[+] HTML Dashboard Loaded. Starting AI Engine...")
-            self.ai_thread.start()
-        else:
-            print("[-] Failed to load HTML file.")
+        # Setup and start the Analytics thread
+        print("Initializing Analytics thread...")
+        self.analytics_thread = AnalyticsThread()
+        self.analytics_thread.analytics_ready_signal.connect(self.on_analytics_ready)
+        self.analytics_thread.start()
+        self.analytics_thread.run()
+
+    @pyqtSlot(str)
+    def on_analytics_ready(self, json_payload):
+        print("Analytics ready")
+        """Receives data safely on the main UI thread."""
+        try:
+            # Critical Point 5: Cross-language injection (Python to JS)
+            # If the JS function doesn't exist or syntax is wrong, this can fail.
+            #self.browser.page().runJavaScript(f"updateAnalyticsChart({json_payload});")
+
+            print(json_payload)
+
+        except Exception as e:
+            print(f"[UI Error] Failed to inject analytics into dashboard: {e}")
+
+
 
     @pyqtSlot(int, str)
     def update_dashboard(self, human_count, b64_str):
@@ -126,11 +146,50 @@ class DashboardWindow(QMainWindow):
         # Execute the Javascript injection
         self.browser.page().runJavaScript(js_code)
 
+    def on_html_loaded(self, success):
+        if success:
+            print("[+] HTML Dashboard Loaded. Starting AI Engine...")
+            self.ai_thread.start()
+        else:
+            print("[-] Failed to load HTML file.")
+
     def closeEvent(self, event):
         """Triggered when the user clicks the 'X' to close the window"""
         print("[*] Shutting down application cleanly...")
         self.ai_thread.stop()
         event.accept()
+
+
+class AnalyticsThread(QThread):
+    analytics_ready_signal = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        try:
+            self.data_manager =  DataManager()
+        except Exception as e:
+            raise RuntimeError(f"Error initializing DataManager: {e}")
+
+    def run(self):
+        try:
+            # Critical Point 1: Reading from disk (Handled mostly in DataManager, but we catch unexpected errors here)
+            averages = self.data_manager.get_hourly_averages()
+
+            # Critical Point 2: JSON Serialization. If data is malformed, this will throw a TypeError.
+            json_payload = json.dumps(averages)
+
+            # Emit success
+            self.analytics_ready_signal.emit(json_payload)
+
+        except Exception as e:
+            # Catch-all ensures the thread doesn't die silently.
+            raise RuntimeError (f"Analytics background processing failed: {str(e)}")
+
+    # temporary function to save and load jsonl
+    def save_log(self, human_count):
+        print("saving log")
+        self.data_manager.save_log(human_count)
+
 
 def main():
     app = QApplication(sys.argv)
