@@ -1,6 +1,8 @@
 
 class Config:
     AVERAGE_WAITING_TIME = 2.5
+    PEOPLE_PER_TELLER = 5
+    MAX_TELLER_COUNT = 4
     METRICS_FILE_PATH = "data_log.jsonl"
     AVERAGE_COUNT_INTERVAL = 900
     MODEL_NAME = "yolo11s.pt"

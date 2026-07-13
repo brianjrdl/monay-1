@@ -82,6 +82,7 @@ class DashboardWindow(QMainWindow):
         self.resize(1280, 720) # Dashboard default size
         self.worker = VisionWorker()
         self.metrics_repository = MetricsRepository()
+        self.human_count_log = 0
 
         # 1. Setup the Web Engine (Chromium Browser inside PyQt)
         self.browser = QWebEngineView()
@@ -141,12 +142,21 @@ class DashboardWindow(QMainWindow):
         the DOM using the IDs we set up in the HTML file.
         """
         # Optimization 3: Only update innerText if the count actually changed.
-        js_code = f"""
+        js_video_update = f"""
             var img = document.getElementById('ui_video_feed');
             if (img) {{
                 img.src = 'data:image/jpeg;base64,{b64_str}';
             }}
+        """
+        self.browser.page().runJavaScript(js_video_update)
 
+        if (human_count == self.human_count_log):
+            return
+
+        self.human_count_log = human_count
+        wait_time = human_count * Config.AVERAGE_WAITING_TIME
+        active_tellers = min((human_count // Config.PEOPLE_PER_TELLER), Config.MAX_TELLER_COUNT - 1)
+        js_count_update = f"""
             var count_elem = document.getElementById('ui_human_count');
             if (count_elem && count_elem.innerText !== '{human_count}') {{
                 count_elem.innerText = '{human_count}';
@@ -154,11 +164,15 @@ class DashboardWindow(QMainWindow):
 
             var waiting_time = document.getElementById('ui_waiting_time');
             if (waiting_time){{
-                waiting_time.innerText = '{human_count * Config.AVERAGE_WAITING_TIME} mins.';
+                waiting_time.innerText = '{wait_time} mins.';
+            }}
+
+            var teller_count = document.getElementById('ui_teller_count');
+            if (teller_count){{
+                teller_count.innerText =  '{active_tellers + 1}';
             }}
         """
-        # Execute the Javascript injection
-        self.browser.page().runJavaScript(js_code)
+        self.browser.page().runJavaScript(js_count_update)
 
     def on_html_loaded(self, success):
         if success:
