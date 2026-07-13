@@ -687,11 +687,11 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-surface-container p-4 rounded-lg border border-outline-variant text-center">
             <div class="font-label text-xs text-on-surface-variant uppercase tracking-widest mb-2">Current Occupancy</div>
-            <div class="font-headline text-3xl text-on-surface" id="kpi-occupancy">--</div>
+            <div class="font-headline text-3xl text-on-surface" id="kpi-occupancy">0</div>
         </div>
         <div class="bg-surface-container p-4 rounded-lg border border-outline-variant text-center">
             <div class="font-label text-xs text-on-surface-variant uppercase tracking-widest mb-2">Est. Wait Time</div>
-            <div class="font-headline text-3xl text-on-surface" id="kpi-wait">--</div>
+            <div class="font-headline text-3xl text-on-surface" id="kpi-wait">0</div>
         </div>
         <div class="bg-surface-container p-4 rounded-lg border border-outline-variant text-center">
             <div class="font-label text-xs text-on-surface-variant uppercase tracking-widest mb-2">Today's Peak</div>
@@ -1034,9 +1034,6 @@
     }
 
     function renderKPIs(kpis) {
-        setText('kpi-occupancy', kpis.current_occupancy);
-        setText('kpi-wait', kpis.estimated_wait + ' mins');
-
         const peak = kpis.today_peak;
         if (peak && !peak.error) {
             setText('kpi-peak', `${peak.peak_count} at ${peak.peak_time}`);

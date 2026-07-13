@@ -158,7 +158,7 @@ class DashboardWindow(QMainWindow):
         active_tellers = min((human_count // Config.PEOPLE_PER_TELLER), Config.MAX_TELLER_COUNT - 1)
         js_count_update = f"""
             var count_elem = document.getElementById('ui_human_count');
-            if (count_elem && count_elem.innerText !== '{human_count}') {{
+            if (count_elem) {{
                 count_elem.innerText = '{human_count}';
             }}
 
@@ -170,6 +170,16 @@ class DashboardWindow(QMainWindow):
             var teller_count = document.getElementById('ui_teller_count');
             if (teller_count){{
                 teller_count.innerText =  '{active_tellers + 1}';
+            }}
+
+            var kpi_occupancy =  document.getElementById('kpi-occupancy');
+            if (kpi_occupancy){{
+                kpi_occupancy.innerText = '{human_count} persons';
+            }}
+
+            var kpi_wait = document.getElementById('kpi-wait');
+            if (kpi_wait){{
+                kpi_wait.innerText = '{wait_time} minutes';
             }}
         """
         self.browser.page().runJavaScript(js_count_update)
@@ -200,23 +210,20 @@ class AnalyticsThread(QThread):
 
     def run(self):
         try:
-            latest = self.metrics_repository.get_latest_count()
-
+            hourly = self.metrics_repository.get_hourly_averages(days=Config.DEFAULT_CHART_DAYS)
+            latest_key = sorted(hourly.keys())[-1]
+            latest_avg = hourly[latest_key]
             payload = {
                 "kpis": {
-                    "current_occupancy": latest,
-                    "estimated_wait": round(latest * Config.AVERAGE_WAITING_TIME, 1),
                     "today_peak": self.metrics_repository.get_today_peak()
                 },
                 "charts": {
-                    "hourly_week": self.metrics_repository.get_hourly_averages(
-                        days=Config.DEFAULT_CHART_DAYS
-                    ),
+                    "hourly_week": hourly,
                     "heatmap": self.metrics_repository.get_heatmap_data()
                 },
                 "insights": [
                     self.metrics_repository.get_busiest_hour_this_week(),
-                    self.metrics_repository.get_current_vs_historical(latest)
+                    self.metrics_repository.get_current_vs_historical(latest_avg)
                 ]
             }
 

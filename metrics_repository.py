@@ -107,24 +107,17 @@ class MetricsRepository:
 
         window_seconds = window_minutes * 60
         buckets = defaultdict(list)
-        found_any = False
 
-        for entry in self._read_entries():
+        for entry in self._read_entries(since=date_str):
             dt = entry.get("datetime", "")
-
-            # Early-exit optimisation: lines are chronological.  Once we've
-            # seen matching data and the date moves on, stop scanning.
             if not dt.startswith(date_str):
-                if found_any:
-                    break
                 continue
 
-            found_any = True
             ts = entry.get("timestamp", 0)
             bucket_key = ts - (ts % window_seconds)
             buckets[bucket_key].append(entry.get("human_count", 0))
 
-        if not found_any:
+        if not buckets:
             return {"error": f"No data for {date_str}"}
 
         # Find the bucket with the highest average
@@ -147,15 +140,40 @@ class MetricsRepository:
 
     def get_yesterday_peak(self) -> dict:
         """Peak window for the most recent date that is NOT today.
-        Walks backward day by day until data is found."""
+        Reads the log once, buckets by date, then walks backward."""
         from config import Config
 
+        since = (
+            datetime.now() - timedelta(days=Config.MAX_ANALYTICS_DAYS)
+        ).strftime("%Y-%m-%d")
+
+        window_seconds = Config.PEAK_WINDOW_MINUTES * 60
+        buckets_by_date = defaultdict(lambda: defaultdict(list))
+
+        for entry in self._read_entries(since=since):
+            dt = entry.get("datetime", "")
+            ts = entry.get("timestamp", 0)
+            date_key = dt[:10]
+            bucket_key = ts - (ts % window_seconds)
+            buckets_by_date[date_key][bucket_key].append(entry.get("human_count", 0))
+
+        # Walk backward from yesterday
         for days_back in range(1, Config.MAX_ANALYTICS_DAYS + 1):
             date_str = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-            result = self._get_peak_window(date_str)
-            if "error" not in result:
-                result["date"] = date_str
-                return result
+            buckets = buckets_by_date.get(date_str)
+            if not buckets:
+                continue
+
+            peak_bucket = max(buckets, key=lambda k: sum(buckets[k]) / len(buckets[k]))
+            peak_count = sum(buckets[peak_bucket]) / len(buckets[peak_bucket])
+            peak_dt = datetime.fromtimestamp(peak_bucket)
+
+            return {
+                "date": date_str,
+                "peak_time": peak_dt.strftime("%H:%M"),
+                "peak_count": round(peak_count, 1),
+                "window_minutes": Config.PEAK_WINDOW_MINUTES
+            }
 
         return {"error": "No data from any recent day"}
 
@@ -163,13 +181,31 @@ class MetricsRepository:
 
     def get_latest_count(self) -> float:
         """Return the human_count from the most recent log entry.
+        Seeks to the end of the file instead of scanning all entries.
         Returns 0.0 when the file is empty or missing."""
-        latest = None
-        for entry in self._read_entries():
-            latest = entry
-        if latest is None:
+        try:
+            with open(self.filepath, 'rb') as f:
+                f.seek(0, os.SEEK_END)
+                file_size = f.tell()
+                if file_size == 0:
+                    return 0.0
+
+                # Walk backwards from the end to find the last newline
+                pos = file_size - 1
+                while pos > 0:
+                    f.seek(pos)
+                    if f.read(1) == b'\n':
+                        break
+                    pos -= 1
+
+                last_line = f.readline().decode().strip()
+                if not last_line:
+                    return 0.0
+
+                entry = json.loads(last_line)
+                return float(entry.get("human_count", 0.0))
+        except (OSError, json.JSONDecodeError):
             return 0.0
-        return float(latest.get("human_count", 0.0))
 
     # ── Heatmap ────────────────────────────────────────────────
 

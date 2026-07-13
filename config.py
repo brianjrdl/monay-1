@@ -11,7 +11,6 @@ class Config:
 
     MAX_ANALYTICS_DAYS = 30          # Only process last 30 days of data
     HEATMAP_MIN_WEEKS = 1            # Need at least this many weeks for heatmap
-    INSIGHT_MIN_ENTRIES = 3          # Minimum entries before generating any insight
 
     # Insight thresholds
     PEAK_CAPACITY_THRESHOLD = 20     # human_count above this = "peak"
