@@ -15,7 +15,7 @@ class DashboardPayload:
 class VisionWorker:
     def __init__(self):
         self.model_name = Config.MODEL_NAME
-        self.detection_classes = [0]
+        self.detection_classes = Config.DETECTION_CLASSES
         self.camera_index = Config.CAMERA_INDEX
         self.capture_backend = [cv2.CAP_DSHOW, cv2.CAP_MSMF]
         self.model = None

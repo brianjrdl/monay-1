@@ -3,7 +3,8 @@ class Config:
     AVERAGE_WAITING_TIME = 2.5
     METRICS_FILE_PATH = "data_log.jsonl"
     AVERAGE_COUNT_INTERVAL = 900
-    MODEL_NAME = "yolo11n.pt"
+    MODEL_NAME = "yolo11s.pt"
+    DETECTION_CLASSES = [0]
     CAMERA_INDEX = 0
 
     MAX_ANALYTICS_DAYS = 30          # Only process last 30 days of data
